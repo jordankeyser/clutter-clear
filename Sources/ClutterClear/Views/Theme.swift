@@ -2,10 +2,11 @@ import SwiftUI
 
 /// Shared look: brand gradient, avatars, cards and buttons.
 enum Brand {
-    static let coral = Color(red: 1.00, green: 0.48, blue: 0.36)
-    static let pink = Color(red: 0.96, green: 0.30, blue: 0.58)
-    static let violet = Color(red: 0.55, green: 0.38, blue: 0.98)
-    static let gradient = LinearGradient(colors: [coral, pink, violet], startPoint: .topLeading, endPoint: .bottomTrailing)
+    // Matches the app icon: navy and indigo through electric blue.
+    static let indigo = Color(red: 0.20, green: 0.26, blue: 0.82)
+    static let accent = Color(red: 0.25, green: 0.50, blue: 1.00)
+    static let violet = Color(red: 0.38, green: 0.36, blue: 0.95)
+    static let gradient = LinearGradient(colors: [indigo, accent], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let keep = Color(red: 0.18, green: 0.74, blue: 0.47)
     static let remove = Color(red: 0.95, green: 0.30, blue: 0.35)
 }
@@ -227,7 +228,7 @@ struct EmptyStateView: View {
             }
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .buttonStyle(PillButtonStyle(tint: Brand.pink))
+                    .buttonStyle(PillButtonStyle(tint: Brand.accent))
                     .padding(.top, 4)
             }
         }

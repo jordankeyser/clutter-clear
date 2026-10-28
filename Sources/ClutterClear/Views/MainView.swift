@@ -98,7 +98,7 @@ struct Sidebar: View {
             } label: {
                 Label("Check Now", systemImage: "arrow.clockwise").frame(maxWidth: .infinity)
             }
-            .buttonStyle(PillButtonStyle(tint: Brand.pink, prominent: false))
+            .buttonStyle(PillButtonStyle(tint: Brand.accent, prominent: false))
             .disabled(state.isScanning || state.data.accounts.isEmpty)
         }
         .padding(14)

@@ -1,35 +1,73 @@
 // Renders the app icon into an .iconset folder. Usage: swift make-icon.swift <out.iconset> [preview.png]
-// A smiling envelope with sparkles and confetti on a sunset gradient.
+// Envelopes lifting out of an inbox tray and fading away, on a navy-to-electric-blue gradient.
 import AppKit
 
 let out = URL(fileURLWithPath: CommandLine.arguments[1])
 try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 
+let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
+let indigo = CGColor(srgbRed: 0.22, green: 0.30, blue: 0.88, alpha: 1)
+
 func rgb(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1) -> CGColor {
     CGColor(srgbRed: r, green: g, blue: b, alpha: a)
 }
 
-/// Four-point sparkle centered at (x, y).
-func sparkle(_ ctx: CGContext, x: CGFloat, y: CGFloat, size: CGFloat, color: CGColor) {
-    let r = size / 2, w = size * 0.13
-    let p = CGMutablePath()
-    p.move(to: CGPoint(x: x, y: y + r))
-    p.addQuadCurve(to: CGPoint(x: x + r, y: y), control: CGPoint(x: x + w, y: y + w))
-    p.addQuadCurve(to: CGPoint(x: x, y: y - r), control: CGPoint(x: x + w, y: y - w))
-    p.addQuadCurve(to: CGPoint(x: x - r, y: y), control: CGPoint(x: x - w, y: y - w))
-    p.addQuadCurve(to: CGPoint(x: x, y: y + r), control: CGPoint(x: x - w, y: y + w))
-    ctx.addPath(p)
-    ctx.setFillColor(color)
-    ctx.fillPath()
+func gradient(_ colors: [CGColor], _ locations: [CGFloat]) -> CGGradient {
+    CGGradient(colorsSpace: srgb, colors: colors as CFArray, locations: locations)!
 }
 
-func confetti(_ ctx: CGContext, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, angle: CGFloat, color: CGColor) {
+/// Inbox tray: a box whose top edge dips in the middle where mail goes in.
+func tray(_ ctx: CGContext, _ s: CGFloat) {
+    let cx: CGFloat = 0.5, w: CGFloat = 0.60
+    let x0 = s * (cx - w / 2), x1 = s * (cx + w / 2), yT = s * 0.43, yB = s * 0.22
+    let a = s * (cx - w * 0.24), b = s * (cx + w * 0.24), dip = s * 0.065, d = s * 0.035, r = s * 0.06
+    let p = CGMutablePath()
+    p.move(to: CGPoint(x: x0, y: yT))
+    p.addLine(to: CGPoint(x: a, y: yT))
+    p.addLine(to: CGPoint(x: a + d, y: yT - dip))
+    p.addLine(to: CGPoint(x: b - d, y: yT - dip))
+    p.addLine(to: CGPoint(x: b, y: yT))
+    p.addLine(to: CGPoint(x: x1, y: yT))
+    p.addArc(tangent1End: CGPoint(x: x1, y: yB), tangent2End: CGPoint(x: x0, y: yB), radius: r)
+    p.addArc(tangent1End: CGPoint(x: x0, y: yB), tangent2End: CGPoint(x: x0, y: yT), radius: r)
+    p.closeSubpath()
+
     ctx.saveGState()
-    ctx.translateBy(x: x, y: y)
-    ctx.rotate(by: angle * .pi / 180)
-    ctx.addPath(CGPath(roundedRect: CGRect(x: -w / 2, y: -h / 2, width: w, height: h), cornerWidth: h / 2, cornerHeight: h / 2, transform: nil))
-    ctx.setFillColor(color)
+    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.02), blur: s * 0.05, color: rgb(0.02, 0.04, 0.2, 0.45))
+    ctx.addPath(p)
+    ctx.setFillColor(rgb(1, 1, 1))
     ctx.fillPath()
+    ctx.restoreGState()
+
+    ctx.saveGState()
+    ctx.addPath(p)
+    ctx.clip()
+    ctx.drawLinearGradient(gradient([rgb(1, 1, 1), rgb(0.90, 0.91, 0.97)], [0, 1]),
+                           start: CGPoint(x: 0, y: yT), end: CGPoint(x: 0, y: yB), options: [])
+    ctx.restoreGState()
+}
+
+/// Small envelope centered at (x, y) as a fraction of the icon, rotated and faded.
+func envelope(_ ctx: CGContext, _ s: CGFloat, x: CGFloat, y: CGFloat, w: CGFloat, angle: CGFloat, alpha: CGFloat) {
+    let ew = s * w, eh = ew * 0.7
+    ctx.saveGState()
+    ctx.setAlpha(alpha)
+    ctx.translateBy(x: s * x, y: s * y)
+    ctx.rotate(by: angle * .pi / 180)
+    let r = CGRect(x: -ew / 2, y: -eh / 2, width: ew, height: eh)
+    ctx.setShadow(offset: CGSize(width: 0, height: -ew * 0.06), blur: ew * 0.15, color: rgb(0.02, 0.04, 0.2, 0.35))
+    ctx.addPath(CGPath(roundedRect: r, cornerWidth: ew * 0.1, cornerHeight: ew * 0.1, transform: nil))
+    ctx.setFillColor(rgb(1, 1, 1))
+    ctx.fillPath()
+    ctx.setShadow(offset: .zero, blur: 0, color: nil)
+    ctx.move(to: CGPoint(x: r.minX + ew * 0.12, y: r.maxY - ew * 0.12))
+    ctx.addLine(to: CGPoint(x: 0, y: -eh * 0.05))
+    ctx.addLine(to: CGPoint(x: r.maxX - ew * 0.12, y: r.maxY - ew * 0.12))
+    ctx.setStrokeColor(indigo)
+    ctx.setLineWidth(ew * 0.07)
+    ctx.setLineCap(.round)
+    ctx.setLineJoin(.round)
+    ctx.strokePath()
     ctx.restoreGState()
 }
 
@@ -41,89 +79,39 @@ func render(_ px: Int) -> Data {
     let ctx = ns.cgContext
     let s = CGFloat(px)
 
-    // Background squircle following the macOS icon grid.
+    // Background squircle on the macOS icon grid.
     let inset = s * 0.098
     let rect = CGRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
     let squircle = CGPath(roundedRect: rect, cornerWidth: rect.width * 0.225, cornerHeight: rect.width * 0.225, transform: nil)
 
     ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.012), blur: s * 0.03, color: rgb(0, 0, 0, 0.3))
+    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.012), blur: s * 0.03, color: rgb(0, 0, 0, 0.35))
     ctx.addPath(squircle)
-    ctx.setFillColor(rgb(0.95, 0.35, 0.55))
+    ctx.setFillColor(rgb(0.12, 0.17, 0.5))
     ctx.fillPath()
     ctx.restoreGState()
 
     ctx.saveGState()
     ctx.addPath(squircle)
     ctx.clip()
-    let colors = [rgb(1.0, 0.62, 0.35), rgb(0.98, 0.33, 0.55), rgb(0.55, 0.36, 0.98)] as CFArray
-    let grad = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 0.5, 1])!
-    ctx.drawLinearGradient(grad, start: CGPoint(x: rect.minX, y: rect.maxY), end: CGPoint(x: rect.maxX, y: rect.minY), options: [])
-    // Soft glossy highlight in the upper left.
-    let glow = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB),
-                          colors: [rgb(1, 1, 1, 0.35), rgb(1, 1, 1, 0)] as CFArray, locations: [0, 1])!
-    ctx.drawRadialGradient(glow, startCenter: CGPoint(x: s * 0.3, y: s * 0.82), startRadius: 0,
-                           endCenter: CGPoint(x: s * 0.3, y: s * 0.82), endRadius: s * 0.55, options: [])
-
-    // Confetti.
-    confetti(ctx, x: s * 0.24, y: s * 0.27, w: s * 0.07, h: s * 0.028, angle: 30, color: rgb(0.45, 0.95, 0.80))
-    confetti(ctx, x: s * 0.73, y: s * 0.21, w: s * 0.06, h: s * 0.026, angle: -25, color: rgb(1.0, 0.86, 0.35))
-    confetti(ctx, x: s * 0.17, y: s * 0.55, w: s * 0.05, h: s * 0.024, angle: 70, color: rgb(0.55, 0.85, 1.0))
-    confetti(ctx, x: s * 0.84, y: s * 0.47, w: s * 0.055, h: s * 0.024, angle: 15, color: rgb(1.0, 1.0, 1.0, 0.85))
-    ctx.setFillColor(rgb(1, 1, 1, 0.8))
-    ctx.fillEllipse(in: CGRect(x: s * 0.62, y: s * 0.80, width: s * 0.03, height: s * 0.03))
-    ctx.setFillColor(rgb(1.0, 0.86, 0.35))
-    ctx.fillEllipse(in: CGRect(x: s * 0.33, y: s * 0.16, width: s * 0.025, height: s * 0.025))
-
-    // The envelope, tilted a little for some personality.
-    let cx = s * 0.48, cy = s * 0.47
-    let ew = s * 0.54, eh = s * 0.38
-    ctx.saveGState()
-    ctx.translateBy(x: cx, y: cy)
-    ctx.rotate(by: -9 * .pi / 180)
-    let env = CGRect(x: -ew / 2, y: -eh / 2, width: ew, height: eh)
-    let envPath = CGPath(roundedRect: env, cornerWidth: s * 0.055, cornerHeight: s * 0.055, transform: nil)
-    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.02), blur: s * 0.045, color: rgb(0.35, 0.05, 0.3, 0.35))
-    ctx.addPath(envPath)
-    ctx.setFillColor(rgb(1, 1, 1))
-    ctx.fillPath()
-    ctx.setShadow(offset: .zero, blur: 0, color: nil)
-
-    // Flap.
-    ctx.setLineCap(.round)
-    ctx.setLineJoin(.round)
-    ctx.setLineWidth(s * 0.02)
-    ctx.setStrokeColor(rgb(0.98, 0.55, 0.68))
-    ctx.move(to: CGPoint(x: env.minX + s * 0.05, y: env.maxY - s * 0.035))
-    ctx.addLine(to: CGPoint(x: 0, y: s * 0.015))
-    ctx.addLine(to: CGPoint(x: env.maxX - s * 0.05, y: env.maxY - s * 0.035))
-    ctx.strokePath()
-
-    // Happy face.
-    let ink = rgb(0.24, 0.13, 0.36)
-    ctx.setFillColor(ink)
-    for dx in [-s * 0.075, s * 0.075] {
-        ctx.fillEllipse(in: CGRect(x: dx - s * 0.018, y: -s * 0.08, width: s * 0.036, height: s * 0.05))
-    }
-    ctx.setFillColor(rgb(1, 1, 1))
-    for dx in [-s * 0.075, s * 0.075] {
-        ctx.fillEllipse(in: CGRect(x: dx - s * 0.006, y: -s * 0.048, width: s * 0.012, height: s * 0.012))
-    }
-    ctx.setStrokeColor(ink)
-    ctx.setLineWidth(s * 0.018)
-    ctx.addArc(center: CGPoint(x: 0, y: -s * 0.095), radius: s * 0.045, startAngle: .pi * 1.15, endAngle: .pi * 1.85, clockwise: false)
-    ctx.strokePath()
-    ctx.setFillColor(rgb(1.0, 0.45, 0.6, 0.45))
-    for dx in [-s * 0.14, s * 0.14] {
-        ctx.fillEllipse(in: CGRect(x: dx - s * 0.03, y: -s * 0.125, width: s * 0.06, height: s * 0.036))
-    }
+    ctx.drawLinearGradient(gradient([rgb(0.06, 0.09, 0.25), rgb(0.20, 0.26, 0.82), rgb(0.27, 0.56, 1.0)], [0, 0.55, 1]),
+                           start: CGPoint(x: rect.minX, y: rect.maxY), end: CGPoint(x: rect.maxX, y: rect.minY), options: [])
+    ctx.drawRadialGradient(gradient([rgb(1, 1, 1, 0.16), rgb(1, 1, 1, 0)], [0, 1]),
+                           startCenter: CGPoint(x: s * 0.5, y: s * 0.95), startRadius: 0,
+                           endCenter: CGPoint(x: s * 0.5, y: s * 0.95), endRadius: s * 0.6, options: [])
     ctx.restoreGState()
 
-    // Sparkles.
-    sparkle(ctx, x: s * 0.77, y: s * 0.74, size: s * 0.17, color: rgb(1.0, 0.88, 0.38))
-    sparkle(ctx, x: s * 0.86, y: s * 0.61, size: s * 0.07, color: rgb(1, 1, 1, 0.95))
-    sparkle(ctx, x: s * 0.22, y: s * 0.76, size: s * 0.09, color: rgb(1, 1, 1, 0.9))
-    ctx.restoreGState()
+    // Hairline edge for definition on dark backgrounds.
+    ctx.addPath(squircle)
+    ctx.setStrokeColor(rgb(1, 1, 1, 0.10))
+    ctx.setLineWidth(max(1, s * 0.004))
+    ctx.strokePath()
+
+    // Mail lifting out of the inbox and fading as it leaves.
+    envelope(ctx, s, x: 0.76, y: 0.79, w: 0.11, angle: -24, alpha: 0.35)
+    envelope(ctx, s, x: 0.65, y: 0.67, w: 0.17, angle: -16, alpha: 0.65)
+    envelope(ctx, s, x: 0.52, y: 0.53, w: 0.25, angle: -8, alpha: 1)
+    tray(ctx, s)
 
     ns.flushGraphics()
     return rep.representation(using: .png, properties: [:])!

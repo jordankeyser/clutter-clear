@@ -65,7 +65,7 @@ struct SettingsView: View {
         Form {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    SettingLabel(title: "Review style", symbol: "rectangle.stack.fill", color: Brand.pink)
+                    SettingLabel(title: "Review style", symbol: "rectangle.stack.fill", color: Brand.accent)
                     HStack(spacing: 12) {
                         ForEach(ReviewStyle.allCases) { style in
                             StyleTile(style: style, selected: state.settings.reviewStyle == style) {
@@ -216,7 +216,7 @@ struct StyleTile: View {
                     .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 Label(style.label, systemImage: selected ? "checkmark.circle.fill" : "circle")
                     .font(.callout.weight(selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? Brand.pink : .secondary)
+                    .foregroundStyle(selected ? Brand.accent : .secondary)
             }
             .padding(10)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous)

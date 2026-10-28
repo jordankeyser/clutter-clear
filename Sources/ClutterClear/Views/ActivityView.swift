@@ -21,7 +21,7 @@ struct ActivityView: View {
                 }
 
                 HStack(spacing: 12) {
-                    StatTile(icon: "sparkles", value: state.data.clearedEmails.formatted(), label: "emails cleared", tint: Brand.pink)
+                    StatTile(icon: "sparkles", value: state.data.clearedEmails.formatted(), label: "emails cleared", tint: Brand.accent)
                     StatTile(icon: "hand.wave.fill", value: "\(state.data.unsubscribedSenders.count)", label: "unsubscribed", tint: Brand.violet)
                     StatTile(icon: "xmark.shield.fill", value: "\(state.data.blockedSenders.count)", label: "blocked", tint: Brand.remove)
                     StatTile(icon: "heart.fill", value: "\(state.data.approvedSenders.count)", label: "kept", tint: Brand.keep)

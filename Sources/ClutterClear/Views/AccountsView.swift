@@ -180,7 +180,7 @@ struct AccountsView: View {
                             Label("Connect", systemImage: "link")
                         }
                     }
-                    .buttonStyle(PillButtonStyle(tint: Brand.pink))
+                    .buttonStyle(PillButtonStyle(tint: Brand.accent))
                     .disabled(ui.testing || ui.email.isEmpty || ui.password.isEmpty)
                     if let (text, ok) = ui.message {
                         Label(text, systemImage: ok ? "checkmark.circle.fill" : "xmark.octagon.fill")

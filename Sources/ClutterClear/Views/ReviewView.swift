@@ -121,7 +121,7 @@ struct SenderSummary: View {
             .font(.body)
 
             HStack(spacing: 10) {
-                StatTile(icon: "envelope.fill", value: "\(c.flagged.count) new", label: "flagged", tint: Brand.pink)
+                StatTile(icon: "envelope.fill", value: "\(c.flagged.count) new", label: "flagged", tint: Brand.accent)
                 StatTile(icon: "calendar", value: "\(c.recentCount) emails", label: "in \(c.windowDays) days", tint: Brand.violet)
                 if c.category == .suspicious {
                     StatTile(icon: "hand.raised.fill", value: "Don't click", label: "links in spam", tint: Brand.remove)
