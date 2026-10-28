@@ -36,6 +36,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSAppleEventsUsageDescription</key><string>Clutter Clear uses Apple Mail to check and clean up inboxes you added through Mail, such as AT&amp;T or SBC addresses.</string>
 </dict>
 </plist>
 PLIST

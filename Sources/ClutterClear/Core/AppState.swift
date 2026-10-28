@@ -103,11 +103,16 @@ final class AppState: ObservableObject {
 
     func account(for id: UUID) -> MailAccount? { data.accounts.first { $0.id == id } }
 
+    /// The saved password, or an empty string for Apple Mail accounts, which need none.
+    func credential(for account: MailAccount) -> String? {
+        account.kind == .appleMail ? "" : Keychain.get(account.keychainKey)
+    }
+
     // MARK: Accounts
 
     func addAccount(_ account: MailAccount, password: String) async throws {
         try await Task.detached { try MailService.testLogin(account, password: password) }.value
-        Keychain.set(password, for: account.keychainKey)
+        if account.kind != .appleMail { Keychain.set(password, for: account.keychainKey) }
         data.accounts.removeAll { $0.email.lowercased() == account.email.lowercased() }
         data.accounts.append(account)
         save()
@@ -144,7 +149,7 @@ final class AppState: ObservableObject {
         }
 
         for account in data.accounts {
-            guard let password = Keychain.get(account.keychainKey) else {
+            guard let password = credential(for: account) else {
                 record(account, "", "No saved password. Re-add this account.", success: false)
                 continue
             }
@@ -263,11 +268,28 @@ final class AppState: ObservableObject {
         Task { await junk(c, scope: scope) }
     }
 
+    /// Moves every email from a sender to Trash in every connected inbox, archived mail included.
+    func deleteEverything(from sender: String) async {
+        busy.insert(sender)
+        defer { busy.remove(sender); save() }
+        for account in data.accounts {
+            guard let password = credential(for: account) else { continue }
+            do {
+                let n = try await Task.detached { try MailService.moveAll(from: sender, account: account, password: password, to: .trash) }.value
+                guard n > 0 else { continue }
+                data.clearedEmails += n
+                record(account, sender, "Moved all \(n) email(s) from this sender to Trash, including archived ones.", success: true)
+            } catch {
+                record(account, sender, "Couldn't move emails: \(error.localizedDescription)", success: false)
+            }
+        }
+    }
+
     func unapprove(_ email: String) { data.approvedSenders.remove(email); save() }
     func unblock(_ email: String) { data.blockedSenders.remove(email); save() }
 
     func unsubscribe(_ c: Candidate, delete scope: DeleteScope) async {
-        guard let account = account(for: c.accountID), let password = Keychain.get(account.keychainKey) else { return }
+        guard let account = account(for: c.accountID), let password = credential(for: account) else { return }
         busy.insert(c.id)
         defer { busy.remove(c.id); save() }
 
@@ -286,7 +308,7 @@ final class AppState: ObservableObject {
 
     /// For spam: never touch its links. Move it to Junk and auto-junk anything else they send.
     func junk(_ c: Candidate, scope: DeleteScope) async {
-        guard let account = account(for: c.accountID), let password = Keychain.get(account.keychainKey) else { return }
+        guard let account = account(for: c.accountID), let password = credential(for: account) else { return }
         busy.insert(c.id)
         defer { busy.remove(c.id); save() }
         data.blockedSenders.insert(c.senderEmail)

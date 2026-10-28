@@ -140,6 +140,32 @@ struct SettingsView: View {
             }
 
             Section {
+                if state.data.unsubscribedSenders.isEmpty {
+                    Text("Senders you unsubscribe from show up here.").foregroundStyle(.secondary)
+                }
+                ForEach(state.data.unsubscribedSenders.sorted { $0.value > $1.value }, id: \.key) { email, date in
+                    HStack(spacing: 10) {
+                        SenderAvatar(name: email, email: email, size: 24)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(email)
+                            Text("Unsubscribed \(date.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if state.busy.contains(email) {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Button("Delete All Their Emails") { Task { await state.deleteEverything(from: email) } }
+                        }
+                    }
+                }
+            } header: {
+                Text("Unsubscribed senders (\(state.data.unsubscribedSenders.count))")
+            } footer: {
+                FooterText("Moves every email from that sender to Trash in all your inboxes, including archived mail.")
+            }
+
+            Section {
                 if state.data.approvedSenders.isEmpty {
                     Text("Senders you keep show up here and are never flagged again.").foregroundStyle(.secondary)
                 }

@@ -23,6 +23,10 @@ enum Unsubscriber {
             guard let parts = parseMailto(raw) else { continue }
             do {
                 try await Task.detached {
+                    if account.kind == .appleMail {
+                        try AppleMail.send(from: account, to: parts.to, subject: parts.subject, body: parts.body)
+                        return
+                    }
                     try SMTPClient.send(host: account.smtpHost, port: UInt16(account.smtpPort),
                                         username: account.email, password: password,
                                         from: account.email, to: parts.to,

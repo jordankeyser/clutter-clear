@@ -1,7 +1,7 @@
 import Foundation
 
 enum AccountKind: String, Codable, CaseIterable, Identifiable {
-    case gmail, att, other
+    case gmail, att, other, appleMail
     var id: String { rawValue }
 
     var label: String {
@@ -9,6 +9,7 @@ enum AccountKind: String, Codable, CaseIterable, Identifiable {
         case .gmail: return "Gmail"
         case .att: return "AT&T / SBC Global"
         case .other: return "Other (IMAP)"
+        case .appleMail: return "Apple Mail"
         }
     }
 }
@@ -21,6 +22,8 @@ struct MailAccount: Codable, Identifiable, Hashable {
     var imapPort: Int
     var smtpHost: String
     var smtpPort: Int
+    /// For accounts reached through Apple Mail: the account's name in Mail.
+    var appleMailName: String? = nil
 
     var keychainKey: String { "imap:\(id.uuidString)" }
 
@@ -32,6 +35,8 @@ struct MailAccount: Codable, Identifiable, Hashable {
         case .att:
             return MailAccount(kind: kind, email: email, imapHost: "imap.mail.att.net", imapPort: 993,
                                smtpHost: "smtp.mail.att.net", smtpPort: 465)
+        case .appleMail:
+            return MailAccount(kind: kind, email: email, imapHost: "", imapPort: 0, smtpHost: "", smtpPort: 0)
         case .other:
             let domain = email.split(separator: "@").last.map(String.init) ?? ""
             return MailAccount(kind: kind, email: email, imapHost: "imap.\(domain)", imapPort: 993,
@@ -108,7 +113,7 @@ enum DeleteScope: String, Codable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .flagged: return "Delete flagged emails"
-        case .allFromSender: return "Delete everything from them"
+        case .allFromSender: return "Delete everything from them, archived too"
         case .none: return "Leave emails alone"
         }
     }
