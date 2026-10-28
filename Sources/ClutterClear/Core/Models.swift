@@ -101,8 +101,31 @@ struct LogEntry: Codable, Identifiable, Hashable {
     var manualDone = false
 }
 
-enum DeleteScope: String, Codable {
-    case none, flagged, allFromSender
+enum DeleteScope: String, Codable, CaseIterable, Identifiable {
+    case flagged, allFromSender, none
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .flagged: return "Delete flagged emails"
+        case .allFromSender: return "Delete everything from them"
+        case .none: return "Leave emails alone"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .flagged: return "trash"
+        case .allFromSender: return "trash.fill"
+        case .none: return "tray"
+        }
+    }
+}
+
+enum ReviewStyle: String, Codable, CaseIterable, Identifiable {
+    case list, cards
+    var id: String { rawValue }
+    var label: String { self == .list ? "List" : "Cards" }
+    var icon: String { self == .list ? "list.bullet.rectangle" : "rectangle.stack" }
 }
 
 struct AppSettings: Codable, Equatable {
@@ -112,6 +135,25 @@ struct AppSettings: Codable, Equatable {
     var initialLookbackDays = 30
     var useClaude = false
     var claudeModel = ClaudeModel.opus.rawValue
+    var reviewStyle = ReviewStyle.cards
+    /// What happens to a sender's emails after unsubscribing, unless changed per sender.
+    var defaultCleanup = DeleteScope.flagged
+
+    init() {}
+
+    // Missing keys fall back to defaults so older saved settings keep loading.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = AppSettings()
+        dailyCheckEnabled = try c.decodeIfPresent(Bool.self, forKey: .dailyCheckEnabled) ?? d.dailyCheckEnabled
+        hour = try c.decodeIfPresent(Int.self, forKey: .hour) ?? d.hour
+        minute = try c.decodeIfPresent(Int.self, forKey: .minute) ?? d.minute
+        initialLookbackDays = try c.decodeIfPresent(Int.self, forKey: .initialLookbackDays) ?? d.initialLookbackDays
+        useClaude = try c.decodeIfPresent(Bool.self, forKey: .useClaude) ?? d.useClaude
+        claudeModel = try c.decodeIfPresent(String.self, forKey: .claudeModel) ?? d.claudeModel
+        reviewStyle = try c.decodeIfPresent(ReviewStyle.self, forKey: .reviewStyle) ?? d.reviewStyle
+        defaultCleanup = try c.decodeIfPresent(DeleteScope.self, forKey: .defaultCleanup) ?? d.defaultCleanup
+    }
 }
 
 enum ClaudeModel: String, CaseIterable, Identifiable {
@@ -139,4 +181,23 @@ struct PersistedState: Codable {
     var lastScan: [String: Date] = [:]
     var lastAutoRun: Date?
     var settings = AppSettings()
+    /// Running total of emails moved to Trash or Junk.
+    var clearedEmails = 0
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        accounts = try c.decodeIfPresent([MailAccount].self, forKey: .accounts) ?? []
+        approvedSenders = try c.decodeIfPresent(Set<String>.self, forKey: .approvedSenders) ?? []
+        blockedSenders = try c.decodeIfPresent(Set<String>.self, forKey: .blockedSenders) ?? []
+        unsubscribedSenders = try c.decodeIfPresent([String: Date].self, forKey: .unsubscribedSenders) ?? [:]
+        seen = try c.decodeIfPresent([String: Date].self, forKey: .seen) ?? [:]
+        candidates = (try? c.decodeIfPresent([Candidate].self, forKey: .candidates)) ?? []
+        log = (try? c.decodeIfPresent([LogEntry].self, forKey: .log)) ?? []
+        lastScan = try c.decodeIfPresent([String: Date].self, forKey: .lastScan) ?? [:]
+        lastAutoRun = try c.decodeIfPresent(Date.self, forKey: .lastAutoRun)
+        settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
+        clearedEmails = try c.decodeIfPresent(Int.self, forKey: .clearedEmails) ?? 0
+    }
 }

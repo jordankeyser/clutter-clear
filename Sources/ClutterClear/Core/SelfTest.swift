@@ -1,6 +1,6 @@
 import Foundation
 
-/// `InboxCleaner --selftest` checks the parsing logic without touching any mailbox.
+/// `ClutterClear --selftest` checks the parsing logic without touching any mailbox.
 enum SelfTest {
     static func run() -> Bool {
         var failures = 0
@@ -61,7 +61,7 @@ enum SelfTest {
         return failures == 0
     }
 
-    /// `InboxCleaner --nettest` connects to the real servers with a fake login to exercise the IMAP plumbing.
+    /// `ClutterClear --nettest` connects to the real servers with a fake login to exercise the IMAP plumbing.
     static func network() {
         for host in ["imap.gmail.com", "imap.mail.att.net"] {
             do {
@@ -69,7 +69,7 @@ enum SelfTest {
                 let caps = try c.command("CAPABILITY").map(\.text).joined()
                 print("  ok   \(host) greeting + CAPABILITY (\(caps.prefix(60))…)")
                 do {
-                    try c.login(user: "nobody-inboxcleaner-test@example.com", password: "wrong")
+                    try c.login(user: "nobody-clutterclear-test@example.com", password: "wrong")
                     print("  FAIL \(host) accepted a fake login?")
                 } catch MailError.auth(let msg) {
                     print("  ok   \(host) rejected fake login: \(msg.prefix(70))")

@@ -1,17 +1,17 @@
 #!/bin/zsh
-# Builds "Inbox Cleaner.app" into ./build. Pass --install to copy it into /Applications and open it.
+# Builds "Clutter Clear.app" into ./build. Pass --install to copy it into /Applications and open it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP="build/Inbox Cleaner.app"
-VERSION="1.0.0"
+APP="build/Clutter Clear.app"
+VERSION="1.1.0"
 
 swift build -c release
-BIN="$(swift build -c release --show-bin-path)/InboxCleaner"
+BIN="$(swift build -c release --show-bin-path)/ClutterClear"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/InboxCleaner"
+cp "$BIN" "$APP/Contents/MacOS/ClutterClear"
 
 if [[ ! -f build/AppIcon.icns ]]; then
     rm -rf build/AppIcon.iconset
@@ -25,10 +25,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Inbox Cleaner</string>
-    <key>CFBundleDisplayName</key><string>Inbox Cleaner</string>
-    <key>CFBundleIdentifier</key><string>com.inboxcleaner.app</string>
-    <key>CFBundleExecutable</key><string>InboxCleaner</string>
+    <key>CFBundleName</key><string>Clutter Clear</string>
+    <key>CFBundleDisplayName</key><string>Clutter Clear</string>
+    <key>CFBundleIdentifier</key><string>com.clutterclear.app</string>
+    <key>CFBundleExecutable</key><string>ClutterClear</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>${VERSION}</string>
@@ -44,9 +44,12 @@ codesign --force --sign - "$APP"
 echo "Built $APP"
 
 if [[ "${1:-}" == "--install" ]]; then
+    pkill -x ClutterClear 2>/dev/null || true
+    # Remove the app from before it was renamed.
     pkill -x InboxCleaner 2>/dev/null || true
     rm -rf "/Applications/Inbox Cleaner.app"
+    rm -rf "/Applications/Clutter Clear.app"
     cp -R "$APP" /Applications/
-    open "/Applications/Inbox Cleaner.app"
+    open "/Applications/Clutter Clear.app"
     echo "Installed to /Applications and launched."
 fi

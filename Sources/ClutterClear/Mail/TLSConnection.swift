@@ -20,7 +20,7 @@ enum MailError: LocalizedError {
 /// A small blocking TLS socket. Callers run it off the main thread.
 final class TLSConnection {
     private let conn: NWConnection
-    private let queue = DispatchQueue(label: "inboxcleaner.tls")
+    private let queue = DispatchQueue(label: "clutterclear.tls")
     private var buffer = Data()
     private let timeout: TimeInterval
 

@@ -17,7 +17,7 @@ struct Mailbox {
     var flags: [String]
 }
 
-/// Minimal blocking IMAP4rev1 client: just what Inbox Cleaner needs.
+/// Minimal blocking IMAP4rev1 client: just what Clutter Clear needs.
 final class IMAPClient {
     private let conn: TLSConnection
     private var tagCounter = 0

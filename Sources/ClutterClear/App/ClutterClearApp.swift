@@ -3,7 +3,7 @@ import SwiftUI
 import UserNotifications
 
 @main
-struct InboxCleanerApp: App {
+struct ClutterClearApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @ObservedObject private var state = AppState.shared
 
@@ -63,7 +63,7 @@ struct MenuContent: View {
 
     var body: some View {
         let count = state.data.candidates.count
-        Button(count == 0 ? "Open Inbox Cleaner" : "Review \(count) sender\(count == 1 ? "" : "s")…") {
+        Button(count == 0 ? "Open Clutter Clear" : "Review \(count) sender\(count == 1 ? "" : "s")…") {
             WindowManager.shared.show(tab: .review)
         }
         .keyboardShortcut("r")
@@ -81,7 +81,7 @@ struct MenuContent: View {
         Button("Settings…") { WindowManager.shared.show(tab: .settings) }
             .keyboardShortcut(",")
         Divider()
-        Button("Quit Inbox Cleaner") { NSApp.terminate(nil) }
+        Button("Quit Clutter Clear") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
 }
@@ -98,14 +98,18 @@ final class WindowManager: NSObject, NSWindowDelegate {
         if window == nil {
             let host = NSHostingController(rootView: MainView().environmentObject(AppState.shared).environmentObject(tabs))
             let w = NSWindow(contentViewController: host)
-            w.title = "Inbox Cleaner"
+            w.title = "Clutter Clear"
             w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-            w.setContentSize(NSSize(width: 1000, height: 680))
-            w.minSize = NSSize(width: 820, height: 520)
+            w.titlebarAppearsTransparent = true
+            w.titleVisibility = .hidden
+            w.toolbar = NSToolbar()
+            w.toolbarStyle = .unified
+            w.setContentSize(NSSize(width: 1100, height: 740))
+            w.minSize = NSSize(width: 860, height: 560)
             w.isReleasedWhenClosed = false
             w.delegate = self
             w.center()
-            w.setFrameAutosaveName("InboxCleanerMain")
+            w.setFrameAutosaveName("ClutterClearMain")
             window = w
         }
         NSApp.setActivationPolicy(.regular)
@@ -121,5 +125,5 @@ final class WindowManager: NSObject, NSWindowDelegate {
 enum MainTab: Hashable { case review, activity, accounts, settings }
 
 final class TabSelection: ObservableObject {
-    @Published var selected: MainTab = .review
+    @Published var selected: MainTab? = .review
 }

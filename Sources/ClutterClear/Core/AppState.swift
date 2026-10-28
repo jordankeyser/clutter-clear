@@ -15,9 +15,15 @@ final class AppState: ObservableObject {
 
     private var timer: Timer?
     private let fileURL: URL = {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("InboxCleaner", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fm = FileManager.default
+        let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = support.appendingPathComponent("ClutterClear", isDirectory: true)
+        // Carry over data saved before the app was renamed from Inbox Cleaner.
+        let legacy = support.appendingPathComponent("InboxCleaner", isDirectory: true)
+        if !fm.fileExists(atPath: dir.path) && fm.fileExists(atPath: legacy.path) {
+            try? fm.moveItem(at: legacy, to: dir)
+        }
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("state.json")
     }()
 
@@ -37,7 +43,9 @@ final class AppState: ObservableObject {
             subjects.enumerated().map { MessageRef(uid: UInt32($0.offset), uidValidity: 1, messageID: "", subject: $0.element,
                                                    date: Date().addingTimeInterval(-Double($0.offset) * 86400)) }
         }
+        isDemo = true
         data = PersistedState()
+        data.clearedEmails = 1284
         data.accounts = [acct, att]
         data.candidates = [
             Candidate(accountID: acct.id, senderEmail: "deals@oldnavy.com", senderName: "Old Navy", category: .promotional,
@@ -61,7 +69,11 @@ final class AppState: ObservableObject {
 
     // MARK: Persistence
 
+    /// True while showing sample data, so nothing is written over real settings.
+    private var isDemo = false
+
     private func save() {
+        guard !isDemo else { return }
         let cutoff = Date().addingTimeInterval(-200 * 86400)
         data.seen = data.seen.filter { $0.value > cutoff }
         if data.log.count > 500 { data.log = Array(data.log.suffix(500)) }
@@ -81,8 +93,9 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Senders waiting for a decision. Ones being processed in the background are hidden.
     var pending: [Candidate] {
-        data.candidates.sorted {
+        data.candidates.filter { !busy.contains($0.id) }.sorted {
             if $0.category != $1.category { return $0.category == .suspicious }
             return $0.flagged.count > $1.flagged.count
         }
@@ -239,6 +252,17 @@ final class AppState: ObservableObject {
         save()
     }
 
+    /// Hides the sender right away and finishes the unsubscribe in the background.
+    func startUnsubscribe(_ c: Candidate, delete scope: DeleteScope) {
+        busy.insert(c.id)
+        Task { await unsubscribe(c, delete: scope) }
+    }
+
+    func startJunk(_ c: Candidate, scope: DeleteScope) {
+        busy.insert(c.id)
+        Task { await junk(c, scope: scope) }
+    }
+
     func unapprove(_ email: String) { data.approvedSenders.remove(email); save() }
     func unblock(_ email: String) { data.blockedSenders.remove(email); save() }
 
@@ -280,10 +304,12 @@ final class AppState: ObservableObject {
             case .flagged:
                 let refs = c.flagged
                 let n = try await Task.detached { try MailService.move(refs, account: account, password: password, to: dest) }.value
+                data.clearedEmails += n
                 record(account, c.senderEmail, "Moved \(n) flagged email(s) to \(place).", success: true)
             case .allFromSender:
                 let sender = c.senderEmail
                 let n = try await Task.detached { try MailService.moveAll(from: sender, account: account, password: password, to: dest) }.value
+                data.clearedEmails += n
                 record(account, c.senderEmail, "Moved all \(n) email(s) from this sender to \(place).", success: true)
             }
         } catch {
@@ -342,7 +368,7 @@ final class AppState: ObservableObject {
     private func notify(count: Int) {
         guard Self.canNotify else { return }
         let content = UNMutableNotificationContent()
-        content.title = "Inbox Cleaner"
+        content.title = "Clutter Clear"
         content.body = count == 1 ? "1 sender to review." : "\(count) senders to review."
         content.sound = .default
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "daily", content: content, trigger: nil))

@@ -1,4 +1,4 @@
-# Inbox Cleaner
+# Clutter Clear
 
 A Mac menu bar app that checks your inboxes every morning, finds promotional, repetitive and spam senders, and lets you decide on each one:
 
@@ -6,13 +6,15 @@ A Mac menu bar app that checks your inboxes every morning, finds promotional, re
 - **Unsubscribe**: the app unsubscribes for you, then removes nothing, the flagged emails, or every email from that sender (to Trash, so it can be undone).
 - **Move to Junk** (likely spam only): the app never clicks spam links, because that confirms your address is real. It moves the mail to Junk and blocks the sender, so their future mail goes to Junk automatically.
 
+Review senders one at a time as **cards** (swipe right to keep, left to unsubscribe, or use ← → and ↓ for later), or switch to a **list** in Settings or with the toggle at the top of Review.
+
 ## Install
 
 ```bash
 ./scripts/build-app.sh --install
 ```
 
-This builds `Inbox Cleaner.app`, copies it to `/Applications`, and opens it. Look for the envelope icon in the menu bar. The app shows a Dock icon only while its window is open.
+This builds `Clutter Clear.app`, copies it to `/Applications`, and opens it. Look for the envelope icon in the menu bar. The app shows a Dock icon only while its window is open.
 
 ## Connect your inboxes
 
@@ -47,13 +49,13 @@ Add an Anthropic API key in Settings to have Claude decide which senders are wor
 
 ```bash
 swift build
-.build/debug/InboxCleaner --selftest
-.build/debug/InboxCleaner --nettest
-.build/debug/InboxCleaner --snapshot /tmp/snaps
+.build/debug/ClutterClear --selftest
+.build/debug/ClutterClear --nettest
+.build/debug/ClutterClear --snapshot /tmp/snaps
 ```
 
 - `--selftest` runs the parser and rule checks.
 - `--nettest` connects to Gmail and AT&T with a fake login to exercise IMAP.
 - `--snapshot` renders each tab with sample data to PNG files.
 
-App data lives in `~/Library/Application Support/InboxCleaner/state.json`.
+App data lives in `~/Library/Application Support/ClutterClear/state.json`.

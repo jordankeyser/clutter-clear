@@ -22,7 +22,7 @@ enum SMTPClient {
         }
 
         try expect("220")
-        try send("EHLO inboxcleaner.local", expecting: "250")
+        try send("EHLO clutterclear.local", expecting: "250")
         let auth = Data("\u{0}\(username)\u{0}\(password)".utf8).base64EncodedString()
         try send("AUTH PLAIN \(auth)", expecting: "235")
         try send("MAIL FROM:<\(from)>", expecting: "250")

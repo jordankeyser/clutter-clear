@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "InboxCleaner",
+    name: "ClutterClear",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "InboxCleaner",
-            path: "Sources/InboxCleaner"
+            name: "ClutterClear",
+            path: "Sources/ClutterClear"
         )
     ]
 )
