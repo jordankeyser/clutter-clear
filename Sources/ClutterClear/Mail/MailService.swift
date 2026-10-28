@@ -9,9 +9,11 @@ struct ScannedMessage {
     var fromName: String
     var fromEmail: String
     var headers: [String: String]
+    /// Folder the email was found in. Nil means the inbox.
+    var mailbox: String? = nil
 
     var ref: MessageRef {
-        MessageRef(uid: uid, uidValidity: uidValidity, messageID: messageID, subject: subject, date: date)
+        MessageRef(uid: uid, uidValidity: uidValidity, messageID: messageID, subject: subject, date: date, mailbox: mailbox)
     }
 }
 
@@ -25,6 +27,14 @@ enum Destination {
         case .junk: return ["[Gmail]/Spam", "Bulk Mail", "Spam", "Junk", "Junk Email"]
         }
     }
+}
+
+/// Lets a long-running background job be stopped from the UI.
+final class CancelFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+    var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return cancelled }
+    func cancel() { lock.lock(); cancelled = true; lock.unlock() }
 }
 
 /// Blocking, one-session-per-call mail operations. Always call from a background task.
@@ -42,6 +52,20 @@ enum MailService {
         c.logout()
     }
 
+    private static func scanned(_ f: FetchedHeader, validity: UInt32, mailbox: String?) -> ScannedMessage {
+        let from = MailParser.parseAddress(f.headers["from"] ?? "")
+        return ScannedMessage(
+            uid: f.uid,
+            uidValidity: validity,
+            messageID: f.headers["message-id"] ?? "",
+            subject: f.headers["subject"] ?? "(no subject)",
+            date: f.internalDate ?? Date(),
+            fromName: from.name,
+            fromEmail: from.email,
+            headers: f.headers,
+            mailbox: mailbox)
+    }
+
     /// Reads headers for every INBOX email since `since`. Mail from blocked senders is moved to Junk.
     static func scan(_ account: MailAccount, password: String, since: Date,
                      blocked: Set<String>) throws -> (messages: [ScannedMessage], junked: [String: Int]) {
@@ -49,33 +73,57 @@ enum MailService {
         let c = try open(account, password)
         defer { c.logout() }
         let validity = try c.select("INBOX")
-        let uids = try c.searchSince(since)
-        let fetched = try c.fetchHeaders(uids)
+        let fetched = try c.fetchHeaders(try c.searchSince(since))
 
         var messages: [ScannedMessage] = []
         var blockedUIDs: [UInt32] = []
         var junked: [String: Int] = [:]
         for f in fetched {
-            let from = MailParser.parseAddress(f.headers["from"] ?? "")
-            if blocked.contains(from.email) {
+            let m = scanned(f, validity: validity, mailbox: nil)
+            if blocked.contains(m.fromEmail) {
                 blockedUIDs.append(f.uid)
-                junked[from.email, default: 0] += 1
+                junked[m.fromEmail, default: 0] += 1
                 continue
             }
-            messages.append(ScannedMessage(
-                uid: f.uid,
-                uidValidity: validity,
-                messageID: f.headers["message-id"] ?? "",
-                subject: f.headers["subject"] ?? "(no subject)",
-                date: f.internalDate ?? Date(),
-                fromName: from.name,
-                fromEmail: from.email,
-                headers: f.headers))
+            messages.append(m)
         }
         if !blockedUIDs.isEmpty, let junk = try c.specialMailbox(flag: Destination.junk.flag, fallbacks: Destination.junk.fallbacks) {
             try c.move(blockedUIDs, to: junk)
         }
         return (messages, junked)
+    }
+
+    /// Reads headers for every email since `since`, optionally including archived mail. Moves nothing.
+    static func deepScan(_ account: MailAccount, password: String, since: Date, includeArchive: Bool,
+                         cancel: CancelFlag, progress: @escaping (String) -> Void) throws -> [ScannedMessage] {
+        if account.kind == .appleMail {
+            progress("Reading \(account.email) through Apple Mail. This can take a few minutes…")
+            return try AppleMail.deepScan(account, since: since, includeArchive: includeArchive, cancel: cancel)
+        }
+        let c = try open(account, password)
+        defer { c.logout() }
+        let boxes = includeArchive ? try sourceMailboxes(client: c, excluding: "") : ["INBOX"]
+        var messages: [ScannedMessage] = []
+        var seenIDs = Set<String>()
+        for box in boxes {
+            if cancel.isCancelled { break }
+            let validity: UInt32
+            do { validity = try c.select(box) } catch { continue }
+            let uids = try c.searchSince(since)
+            var done = 0
+            for chunk in uids.chunked(600) {
+                if cancel.isCancelled { break }
+                progress("Reading \(account.email): \((done + chunk.count).formatted()) of \(uids.count.formatted()) emails…")
+                for f in try c.fetchHeaders(chunk) {
+                    let m = scanned(f, validity: validity, mailbox: box == "INBOX" ? nil : box)
+                    // The same email can sit in more than one folder; count it once.
+                    if !m.messageID.isEmpty && !seenIDs.insert(m.messageID).inserted { continue }
+                    messages.append(m)
+                }
+                done += chunk.count
+            }
+        }
+        return messages
     }
 
     private static func resolve(_ refs: [MessageRef], client c: IMAPClient, validity: UInt32) throws -> [UInt32] {
@@ -97,15 +145,21 @@ enum MailService {
         return name
     }
 
+    /// Moves specific emails, each from the folder it was found in.
     static func move(_ refs: [MessageRef], account: MailAccount, password: String, to dest: Destination) throws -> Int {
-        if account.kind == .appleMail { return try AppleMail.move(ids: refs.map(\.uid), account: account, to: dest) }
+        if account.kind == .appleMail { return try AppleMail.move(refs, account: account, to: dest) }
         let c = try open(account, password)
         defer { c.logout() }
         let target = try mailbox(dest, client: c)
-        let validity = try c.select("INBOX")
-        let uids = try resolve(refs, client: c, validity: validity)
-        try c.move(uids, to: target)
-        return uids.count
+        var total = 0
+        for (box, group) in Dictionary(grouping: refs, by: { $0.mailbox ?? "INBOX" }) {
+            let validity: UInt32
+            do { validity = try c.select(box) } catch { continue }
+            let uids = try resolve(group, client: c, validity: validity)
+            try c.move(uids, to: target)
+            total += uids.count
+        }
+        return total
     }
 
     /// Folders that can hold a sender's past mail, archived mail included.
@@ -144,7 +198,7 @@ enum MailService {
         if account.kind == .appleMail { return try AppleMail.source(of: ref, account: account) }
         let c = try open(account, password)
         defer { c.logout() }
-        let validity = try c.select("INBOX")
+        let validity = try c.select(ref.mailbox ?? "INBOX")
         guard let uid = try resolve([ref], client: c, validity: validity).first else { return nil }
         return try c.fetchFullMessage(uid)
     }

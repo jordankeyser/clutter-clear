@@ -25,6 +25,18 @@ struct ReviewView: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 8)
             }
+            if let notice = state.notice {
+                HStack(spacing: 10) {
+                    Image(systemName: "wand.and.sparkles").foregroundStyle(Brand.accent)
+                    Text(notice).font(.callout)
+                    Spacer()
+                    Button { state.notice = nil } label: { Image(systemName: "xmark") }.buttonStyle(.borderless)
+                }
+                .padding(12)
+                .background(Brand.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.horizontal, 28)
+                .padding(.bottom, 8)
+            }
             content(items)
         }
         .overlay(alignment: .bottom) { backgroundWork }
@@ -39,6 +51,23 @@ struct ReviewView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if state.deepCleanRunning {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text(state.scanStatus).font(.callout).foregroundStyle(.secondary).lineLimit(1).frame(maxWidth: 320, alignment: .trailing)
+                    Button("Stop") { state.cancelDeepClean() }
+                        .buttonStyle(PillButtonStyle(tint: Brand.remove, prominent: false))
+                }
+            } else if !state.data.accounts.isEmpty {
+                Button {
+                    state.showDeepClean = true
+                } label: {
+                    Label("Deep Clean…", systemImage: "wand.and.sparkles")
+                }
+                .buttonStyle(PillButtonStyle(tint: Brand.accent, prominent: false))
+                .disabled(state.isScanning)
+                .help("Look through older mail once and add clutter senders to Review")
+            }
             if !state.data.accounts.isEmpty && count > 0 {
                 Picker("View", selection: style) {
                     ForEach(ReviewStyle.allCases) { s in
@@ -132,7 +161,7 @@ struct SenderSummary: View {
 
             if let when = c.previouslyUnsubscribed {
                 notice("arrow.uturn.backward.circle.fill", .orange,
-                       "You unsubscribed on \(when.formatted(date: .abbreviated, time: .omitted)) and they're still sending.")
+                       "You unsubscribed on \(when.formatted(date: .abbreviated, time: .omitted)). Their older emails are still in your mail.")
             }
             if c.category == .suspicious {
                 notice("shield.lefthalf.filled", Brand.remove,
@@ -276,7 +305,8 @@ struct DecisionPanel: View {
             Text(isSpam ? "When moving to Junk" : "After unsubscribing")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             CleanupPicker(options: isSpam ? [.flagged, .allFromSender] : [.flagged, .allFromSender, .none],
-                          selection: $ui.scope, junk: isSpam)
+                          selection: Binding(get: { ui.scope }, set: { ui.scope = $0; if !isSpam { state.rememberCleanup($0) } }),
+                                  junk: isSpam)
             HStack(spacing: 12) {
                 Button {
                     withAnimation(.snappy) { state.keep(candidate) }
@@ -359,7 +389,8 @@ struct CardDeck: View {
             if let top {
                 VStack(spacing: 14) {
                     CleanupPicker(options: isSpam ? [.flagged, .allFromSender] : [.flagged, .allFromSender, .none],
-                                  selection: $ui.scope, junk: isSpam)
+                                  selection: Binding(get: { ui.scope }, set: { ui.scope = $0; if !isSpam { state.rememberCleanup($0) } }),
+                                  junk: isSpam)
                     HStack(spacing: 34) {
                         RoundActionButton(icon: isSpam ? "xmark.bin.fill" : "xmark", label: isSpam ? "Junk" : "Unsubscribe",
                                           tint: Brand.remove) { decide(.remove, top) }

@@ -12,6 +12,11 @@ final class AppState: ObservableObject {
     @Published private(set) var scanStatus = ""
     @Published private(set) var busy: Set<String> = []
     @Published var lastError: String?
+    /// A friendly one-off message for the Review screen, such as a deep clean summary.
+    @Published var notice: String?
+    @Published var showDeepClean = false
+    @Published private(set) var deepCleanRunning = false
+    private var deepCleanCancel = CancelFlag()
 
     private var timer: Timer?
     private let fileURL: URL = {
@@ -185,15 +190,16 @@ final class AppState: ObservableObject {
         if auto && newOnes > 0 { notify(count: data.candidates.count) }
     }
 
-    private func buildCandidates(account: MailAccount, messages: [ScannedMessage], windowDays: Int) async {
+    /// `deep` treats every message as new, for a one-time sweep of older mail.
+    private func buildCandidates(account: MailAccount, messages: [ScannedMessage], windowDays: Int, deep: Bool = false) async {
         let mine = Set(data.accounts.map { $0.email.lowercased() })
         let grouped = Dictionary(grouping: messages.filter { !mine.contains($0.fromEmail) && !$0.fromEmail.isEmpty }, by: \.fromEmail)
 
         var groups: [String: SenderGroup] = [:]
         for (email, msgs) in grouped {
-            guard !data.approvedSenders.contains(email) else { continue }
+            guard !data.approvedSenders.contains(email), !data.blockedSenders.contains(email) else { continue }
             let sorted = msgs.sorted { $0.date > $1.date }
-            let fresh = sorted.filter { data.seen[seenKey(account, $0)] == nil }
+            let fresh = deep ? sorted : sorted.filter { data.seen[seenKey(account, $0)] == nil }
             guard !fresh.isEmpty else { continue }
             groups[email] = SenderGroup(email: email, name: sorted[0].fromName, messages: sorted, newMessages: fresh)
         }
@@ -248,6 +254,70 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: Deep clean
+
+    struct DeepCleanOptions {
+        var days = 365
+        var accountIDs: Set<UUID>
+        var includeArchive = true
+    }
+
+    /// Sweeps older mail once and adds senders to the review queue. Moves and deletes nothing.
+    func deepClean(_ options: DeepCleanOptions) async {
+        guard !isScanning else { return }
+        isScanning = true
+        deepCleanRunning = true
+        lastError = nil
+        notice = nil
+        let cancel = CancelFlag()
+        deepCleanCancel = cancel
+        let before = Set(data.candidates.map(\.id))
+        defer {
+            isScanning = false
+            deepCleanRunning = false
+            scanStatus = ""
+            save()
+        }
+
+        let since = Date().addingTimeInterval(-Double(options.days) * 86400)
+        var read = 0
+        for account in data.accounts where options.accountIDs.contains(account.id) {
+            if cancel.isCancelled { break }
+            guard let password = credential(for: account) else { continue }
+            scanStatus = "Deep cleaning \(account.email)…"
+            do {
+                let messages = try await Task.detached {
+                    try MailService.deepScan(account, password: password, since: since, includeArchive: options.includeArchive,
+                                             cancel: cancel) { text in
+                        Task { @MainActor in AppState.shared.scanStatus = text }
+                    }
+                }.value
+                if cancel.isCancelled { break }
+                read += messages.count
+                scanStatus = "Sorting \(messages.count.formatted()) emails from \(account.email)…"
+                await buildCandidates(account: account, messages: messages, windowDays: options.days, deep: true)
+                let now = Date()
+                for m in messages { data.seen[seenKey(account, m), default: now] = now }
+                save()
+            } catch {
+                lastError = "\(account.email): \(error.localizedDescription)"
+                record(account, "", "Deep clean stopped: \(error.localizedDescription)", success: false)
+            }
+        }
+
+        let found = Set(data.candidates.map(\.id)).subtracting(before).count
+        if cancel.isCancelled {
+            notice = "Deep clean canceled. \(found) sender\(found == 1 ? "" : "s") found so far were added to Review."
+        } else {
+            notice = "Deep clean read \(read.formatted()) emails and found \(found) sender\(found == 1 ? "" : "s") to review. Nothing was deleted."
+        }
+    }
+
+    func cancelDeepClean() {
+        deepCleanCancel.cancel()
+        scanStatus = "Stopping…"
+    }
+
     // MARK: Decisions
 
     func keep(_ c: Candidate) {
@@ -283,6 +353,13 @@ final class AppState: ObservableObject {
                 record(account, sender, "Couldn't move emails: \(error.localizedDescription)", success: false)
             }
         }
+    }
+
+    /// The cleanup choice sticks: whatever was picked last becomes the default for the next sender.
+    func rememberCleanup(_ scope: DeleteScope) {
+        guard data.settings.defaultCleanup != scope else { return }
+        data.settings.defaultCleanup = scope
+        save()
     }
 
     func unapprove(_ email: String) { data.approvedSenders.remove(email); save() }

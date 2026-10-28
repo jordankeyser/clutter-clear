@@ -21,6 +21,9 @@ struct MainView: View {
             .background(Color(nsColor: .windowBackgroundColor))
         }
         .frame(minWidth: 860, minHeight: 560)
+        .sheet(isPresented: $state.showDeepClean) {
+            DeepCleanSheet().environmentObject(state)
+        }
     }
 }
 

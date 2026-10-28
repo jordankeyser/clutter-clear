@@ -36,5 +36,17 @@ enum Snapshot {
             try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("\(name).png"))
             print("wrote \(name).png")
         }
+
+        let sheet = NSHostingView(rootView: DeepCleanSheet().environmentObject(state))
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 640), styleMask: [.titled], backing: .buffered, defer: false)
+        w.appearance = NSAppearance(named: .aqua)
+        w.contentView = sheet
+        sheet.setFrameSize(sheet.fittingSize)
+        RunLoop.main.run(until: Date().addingTimeInterval(1.0))
+        if let rep = sheet.bitmapImageRepForCachingDisplay(in: sheet.bounds) {
+            sheet.cacheDisplay(in: sheet.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("deep-clean.png"))
+            print("wrote deep-clean.png")
+        }
     }
 }

@@ -75,6 +75,12 @@ struct SettingsView: View {
                     }
                 }
                 .padding(.vertical, 4)
+                HStack {
+                    SettingLabel(title: "Deep clean older mail", symbol: "wand.and.sparkles", color: Brand.indigo)
+                    Spacer()
+                    Button("Deep Clean…") { state.showDeepClean = true }
+                        .disabled(state.isScanning || state.data.accounts.isEmpty)
+                }
                 Picker(selection: binding(\.defaultCleanup)) {
                     ForEach(DeleteScope.allCases) { Label($0.title, systemImage: $0.icon).tag($0) }
                 } label: {
@@ -83,7 +89,7 @@ struct SettingsView: View {
             } header: {
                 Text("Reviewing")
             } footer: {
-                FooterText("Cards show one sender at a time; swipe right to keep, left to unsubscribe. You can still change the cleanup choice for any single sender.")
+                FooterText("Cards show one sender at a time; swipe right to keep, left to unsubscribe. Whatever cleanup choice you pick while reviewing becomes the new default here.")
             }
 
             Section {

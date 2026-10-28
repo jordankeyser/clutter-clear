@@ -215,19 +215,34 @@ final class IMAPClient {
 
     func move(_ uids: [UInt32], to mailbox: String) throws {
         guard !uids.isEmpty else { return }
-        for chunk in uids.chunked(200) {
+        for chunk in uids.chunked(100) {
             let set = Self.uidSet(chunk)
-            if capabilities.contains("MOVE") {
-                try command("UID MOVE \(set) \(Self.quote(mailbox))")
-            } else {
-                try command("UID COPY \(set) \(Self.quote(mailbox))")
-                try command("UID STORE \(set) +FLAGS.SILENT (\\Deleted)")
-                if capabilities.contains("UIDPLUS") {
-                    try command("UID EXPUNGE \(set)")
-                } else {
-                    try command("EXPUNGE")
+            // Gmail sometimes answers a large move with a temporary "System Error"; wait and retry,
+            // then fall back to copy + delete.
+            var attempt = 0
+            while true {
+                do {
+                    if capabilities.contains("MOVE") && attempt < 2 {
+                        try command("UID MOVE \(set) \(Self.quote(mailbox))")
+                    } else {
+                        try copyAndDelete(set, to: mailbox)
+                    }
+                    break
+                } catch MailError.server(_) where attempt < 2 {
+                    attempt += 1
+                    Thread.sleep(forTimeInterval: Double(attempt) * 1.5)
                 }
             }
+        }
+    }
+
+    private func copyAndDelete(_ set: String, to mailbox: String) throws {
+        try command("UID COPY \(set) \(Self.quote(mailbox))")
+        try command("UID STORE \(set) +FLAGS.SILENT (\\Deleted)")
+        if capabilities.contains("UIDPLUS") {
+            try command("UID EXPUNGE \(set)")
+        } else {
+            try command("EXPUNGE")
         }
     }
 }

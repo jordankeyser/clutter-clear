@@ -65,6 +65,8 @@ struct MessageRef: Codable, Hashable {
     var messageID: String
     var subject: String
     var date: Date
+    /// Folder the email was found in. Nil means the inbox.
+    var mailbox: String? = nil
 }
 
 struct Candidate: Codable, Identifiable, Hashable {
